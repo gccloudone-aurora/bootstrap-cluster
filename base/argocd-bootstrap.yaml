@@ -1,0 +1,17 @@
+global:
+  apiServerCidr: "172.26.26.132/27"
+  azureMetadataApiCidr: "169.254.169.254/32"
+  alertManagerCidrs: ["172.26.26.132/32"]
+  loggingCidrs: ["172.26.26.132/32"]
+  vaultCidrs: ["172.26.26.132/32"]
+
+core:
+  enabled: false
+
+app:
+  enabled: false
+
+mgmt:
+  enabled: true
+  components:
+    argoOperator: {}

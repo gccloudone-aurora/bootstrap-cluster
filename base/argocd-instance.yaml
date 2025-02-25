@@ -1,0 +1,14 @@
+register:
+  repositories:
+    aurora-helm:
+       type: helm
+       url: https://gccloudone-aurora.github.io/aurora-platform-charts
+    # Replace the following two entries with your location(s)
+    aurora-clusters:
+       type: git
+       url: https://github.com/gccloudone-aurora/aurora-template-example.git
+       path: clusters
+    aurora-namespaces:
+       type: git
+       url: https://github.com/gccloudone-aurora/aurora-template-example.git
+       path: namespaces
