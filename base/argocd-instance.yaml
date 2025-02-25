@@ -7,8 +7,8 @@ register:
     aurora-clusters:
        type: git
        url: https://github.com/gccloudone-aurora/aurora-template-example.git
-       path: clusters
+       path: platform/clusters
     aurora-namespaces:
        type: git
        url: https://github.com/gccloudone-aurora/aurora-template-example.git
-       path: namespaces
+       path: platform/namespaces
