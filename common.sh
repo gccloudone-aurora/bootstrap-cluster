@@ -27,7 +27,12 @@ create_cluster () {
 
   if ! k3d cluster list "${cluster}" >/dev/null 2>&1; then
     echo "[${cluster}]: Creating cluster..."
-    k3d cluster create --k3s-arg '--disable=traefik@server:0' "$@" "${cluster}"
+    if [ -f /usr/local/share/ca-certificates/custom.crt ]; then
+      echo "[${cluster}]: Custom certificate found, adding volume..."
+      k3d cluster create --volume /usr/local/share/ca-certificates/custom.crt:/etc/ssl/certs/custom.crt --k3s-arg '--disable=traefik@server:0' "$@" "${cluster}"
+    else
+      k3d cluster create --k3s-arg '--disable=traefik@server:0' "$@" "${cluster}"
+    fi
   else
     echo "[${cluster}]: Cluster already exists, skipping..."
   fi

@@ -20,6 +20,9 @@ create_cluster "${BOOTSTRAP_CLUSTER}" --k3s-arg "--kube-apiserver-arg=--service-
 echo "Adding Managed Identity to VM..."
 MSI_CLIENT_ID=$(az vm identity assign --ids $(curl --silent -H 'Metadata: true' 'http://169.254.169.254/metadata/instance?api-version=2021-02-01' | jq -r .compute.resourceId) --identities "$MSI_RESOURCE_ID" | jq -r ".userAssignedIdentities[\"$MSI_RESOURCE_ID\"].clientId")
 
+echo "[${BOOTSTRAP_CLUSTER}] Creating Labels..."
+do_kubectl "${BOOTSTRAP_CLUSTER}" label node "k3d-${BOOTSTRAP_CLUSTER}-server-0" node.ssc-spc.gc.ca/purpose=system
+
 echo "[${BOOTSTRAP_CLUSTER}] Creating argo-operator-system namespace..."
 cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
 apiVersion: v1
@@ -83,7 +86,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set argocdInstance.argocdVaultPlugin.credentials.azureClientID="${MSI_CLIENT_ID}" \
   -f base/argocd-instance.yaml \
   --force \
-  --version 0.0.1 \
+  --version 0.0.6 \
   argocd-instance \
   aurora/argocd-instance
 
@@ -103,13 +106,18 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set mgmt.components.argoFoundation.argocdInstance.aadPodIdentity.enabled="false" \
   --set mgmt.components.argoFoundation.argocdInstance.netpol.enabled="false" \
   --set mgmt.components.argoFoundation.argocdInstance.notifications.enabled="false" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.files[0].repoURL=${CLUSTER_REPOSITORY}" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.files[0].revision=main" \
+  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.repoURL=${CLUSTER_REPOSITORY}" \
+  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.revision=main" \
   --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.files[0].path=${CLUSTER_PATH}/${CLUSTER_NAME}/config.yaml" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.template.source.repoURL=${CONTAINER_REGISTRY}" \
+  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.template.source.repoURL=${HELM_REPOSITORY}" \
+  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.repoURL=${CLUSTER_REPOSITORY}" \
+  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.revision=main" \
+  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.files[0].path=${CLUSTER_PATH}/${CLUSTER_NAME}/config.yaml" \
+  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.template.source.repoURL=${HELM_REPOSITORY}" \
+  --set "mgmt.components.billOfLanding.enabled=false" \
   -f base/argocd-bootstrap.yaml \
   --force \
-  --version 0.0.1 \
+  --version 0.0.2 \
   aurora-platform \
   aurora/aurora-platform
 
@@ -117,8 +125,9 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
 ### Image Pull Secret ###
 #########################
 
-echo "[${BOOTSTRAP_CLUSTER}] Installing Image Pull Secret..."
-cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
+if [[ -n "$IMAGE_PULL_SECRET" ]]; then
+  echo "[${BOOTSTRAP_CLUSTER}] Installing Image Pull Secret..."
+  cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -130,19 +139,23 @@ data:
     ${IMAGE_PULL_SECRET}
 EOF
 
-echo "[${BOOTSTRAP_CLUSTER}] Adding Image Pull Secret to Sevice Accounts for Argo CD..."
-NAMESPACE="platform-management-system"
-IMAGE_PULL_SECRET="aurora-image-pull-secret"
-SERVICE_ACCOUNTS=$(do_kubectl "${BOOTSTRAP_CLUSTER}" get serviceaccounts -n "$NAMESPACE" --no-headers -o custom-columns=':.metadata.name')
-for SA in $SERVICE_ACCOUNTS; do
-  CURRENT_SECRETS=$(do_kubectl "${BOOTSTRAP_CLUSTER}" get serviceaccount "$SA" -n "$NAMESPACE" -o jsonpath="{.imagePullSecrets[*].name}")
-  if [[ "$CURRENT_SECRETS" != *"$IMAGE_PULL_SECRET"* ]]; then
-    kubectl patch serviceaccount "$SA" -n "$NAMESPACE" -p '{"imagePullSecrets": [{"name": "'$IMAGE_PULL_SECRET'"}]}'
-    echo "Added imagePullSecret '$IMAGE_PULL_SECRET' to ServiceAccount '$SA'"
-  else
-    echo "ImagePullSecret '$IMAGE_PULL_SECRET' already exists in ServiceAccount '$SA'"
-  fi
-done
+  echo "[${BOOTSTRAP_CLUSTER}] Adding Image Pull Secret to Service Accounts for Argo CD..."
+  NAMESPACE="platform-management-system"
+  SECRET_NAME="aurora-image-pull-secret"
+  SERVICE_ACCOUNTS=$(do_kubectl "${BOOTSTRAP_CLUSTER}" get serviceaccounts -n "$NAMESPACE" --no-headers -o custom-columns=':.metadata.name')
+
+  for SA in $SERVICE_ACCOUNTS; do
+    CURRENT_SECRETS=$(do_kubectl "${BOOTSTRAP_CLUSTER}" get serviceaccount "$SA" -n "$NAMESPACE" -o jsonpath="{.imagePullSecrets[*].name}")
+    if [[ "$CURRENT_SECRETS" != *"$SECRET_NAME"* ]]; then
+      do_kubectl "${BOOTSTRAP_CLUSTER}" patch serviceaccount "$SA" -n "$NAMESPACE" -p '{"imagePullSecrets": [{"name": "'$SECRET_NAME'"}]}'
+      echo "Added imagePullSecret '$SECRET_NAME' to ServiceAccount '$SA'"
+    else
+      echo "ImagePullSecret '$SECRET_NAME' already exists in ServiceAccount '$SA'"
+    fi
+  done
+else
+  echo "[${BOOTSTRAP_CLUSTER}] Skipping Image Pull Secret setup as IMAGE_PULL_SECRET is empty."
+fi
 
 ##################################
 ### Output Argo CD Credentials ###
