@@ -4,11 +4,14 @@ register:
        type: helm
        url: https://gccloudone-aurora.github.io/aurora-platform-charts
     # Replace the following two entries with your location(s)
-    aurora-clusters:
+    aurora:
        type: git
        url: https://github.com/gccloudone-aurora/aurora-template-example.git
-       path: platform/clusters
-    aurora-namespaces:
-       type: git
-       url: https://github.com/gccloudone-aurora/aurora-template-example.git
-       path: platform/namespaces
+
+  # To be used for private helm / git repositories
+  # repositoryCreds:
+  #   aurora:
+  #     type: git
+  #     url: https://github.com/gccloudone-aurora/aurora-template-example.git
+  #     username: aurora-svc
+  #     password: github_pat_XXXXX
