@@ -108,7 +108,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set mgmt.components.argoFoundation.argocdInstance.notifications.enabled="false" \
   --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.repoURL=${CLUSTER_REPOSITORY}" \
   --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.revision=main" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.files[0].path=${CLUSTER_PATH}/{CLUSTER_NAME}/**/config.yaml" \
+  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.files[0].path=${CLUSTER_PATH}/${CLUSTER_NAME}/**/config.yaml" \
   --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.template.source.repoURL=${HELM_REPOSITORY}" \
   --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.repoURL=${CLUSTER_REPOSITORY}" \
   --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.revision=main" \
