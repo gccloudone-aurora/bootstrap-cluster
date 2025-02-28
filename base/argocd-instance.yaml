@@ -9,7 +9,7 @@ register:
        url: https://github.com/gccloudone-aurora/aurora-template-example.git
 
   # To be used for private helm / git repositories
-  repositoryCreds:
+  # repositoryCreds:
   #   aurora:
   #     type: git
   #     url: https://github.com/gccloudone-aurora/aurora-template-example.git
