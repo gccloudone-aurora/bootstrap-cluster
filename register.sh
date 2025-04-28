@@ -33,14 +33,14 @@ cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
-  name: "${CLUSTER_NAME}"
+  name: "${CLUSTER_NAME,,}"
   namespace: platform-management-system
   labels:
     argocd.argoproj.io/secret-type: cluster
     cluster.ssc-spc.gc.ca/use: argocd
 type: Opaque
 stringData:
-  name: "${CLUSTER_NAME}"
+  name: "${CLUSTER_NAME,,}"
   server: "${api_server}"
   config: |
     {

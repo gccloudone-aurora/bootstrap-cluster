@@ -18,7 +18,9 @@ create_cluster "${BOOTSTRAP_CLUSTER}" --k3s-arg "--kube-apiserver-arg=--service-
 # Adding Managed Identity
 # Note we pass Client ID for the AAD Pod Identity / AVP
 echo "Adding Managed Identity to VM..."
-MSI_CLIENT_ID=$(az vm identity assign --ids $(curl --silent -H 'Metadata: true' 'http://169.254.169.254/metadata/instance?api-version=2021-02-01' | jq -r .compute.resourceId) --identities "$MSI_RESOURCE_ID" | jq -r ".userAssignedIdentities[\"$MSI_RESOURCE_ID\"].clientId")
+if [ ! -z "$MSI_CLIENT_ID" ]; then
+  MSI_CLIENT_ID=$(az vm identity assign --ids $(curl --silent -H 'Metadata: true' 'http://169.254.169.254/metadata/instance?api-version=2021-02-01' | jq -r .compute.resourceId) --identities "$MSI_RESOURCE_ID" | jq -r ".userAssignedIdentities[\"$MSI_RESOURCE_ID\"].clientId")
+fi
 
 echo "[${BOOTSTRAP_CLUSTER}] Creating Labels..."
 do_kubectl "${BOOTSTRAP_CLUSTER}" label node "k3d-${BOOTSTRAP_CLUSTER}-server-0" node.ssc-spc.gc.ca/purpose=system
@@ -86,7 +88,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set argocdInstance.argocdVaultPlugin.credentials.azureClientID="${MSI_CLIENT_ID}" \
   -f base/argocd-instance.yaml \
   --force \
-  --version 0.0.6 \
+  --version 0.0.7 \
   argocd-instance \
   aurora/argocd-instance
 
@@ -117,7 +119,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set "mgmt.components.billOfLanding.enabled=false" \
   -f base/argocd-bootstrap.yaml \
   --force \
-  --version 0.0.24 \
+  --version 0.0.26 \
   aurora-platform \
   aurora/aurora-platform
 
