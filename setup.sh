@@ -18,7 +18,7 @@ create_cluster "${BOOTSTRAP_CLUSTER}" --k3s-arg "--kube-apiserver-arg=--service-
 # Adding Managed Identity
 # Note we pass Client ID for the AAD Pod Identity / AVP
 echo "Adding Managed Identity to VM..."
-if [ ! -z "$MSI_CLIENT_ID" ]; then
+if [ -z "${MSI_CLIENT_ID}" ]; then
   MSI_CLIENT_ID=$(az vm identity assign --ids $(curl --silent -H 'Metadata: true' 'http://169.254.169.254/metadata/instance?api-version=2021-02-01' | jq -r .compute.resourceId) --identities "$MSI_RESOURCE_ID" | jq -r ".userAssignedIdentities[\"$MSI_RESOURCE_ID\"].clientId")
 fi
 
