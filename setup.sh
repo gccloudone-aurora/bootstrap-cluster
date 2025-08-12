@@ -165,5 +165,3 @@ argocd_password=$(do_kubectl "${BOOTSTRAP_CLUSTER}" get secret -n platform-manag
 echo "Argo CD: http://127.0.0.1:$argocd_port"
 echo "  Username: admin"
 echo "  Password: $argocd_password"
-
-# k3d kubeconfig merge bootstrap-local-cc-00 -d
