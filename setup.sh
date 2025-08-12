@@ -2,9 +2,6 @@
 
 set -eou pipefail
 
-# Load utils
-source common.sh
-
 # Steps:
 # 1. Install the argocd-operator chart within the argo-operator-system namespace
 # 2. Install the argocd-instance chart within the platform-management-system namespace
@@ -12,56 +9,29 @@ source common.sh
 # 4. Create an image pull secret and attach it to every service account within the platform-management-system namespace
 # 5. Wait for Argo CD credentials
 
+# Validate input
+source input.sh
+# Load utils
+source common.sh
+
 echo "Creating ${BOOTSTRAP_CLUSTER} cluster..."
 create_cluster "${BOOTSTRAP_CLUSTER}" --k3s-arg "--kube-apiserver-arg=--service-node-port-range=30000-30050@server:0" -p "30000-30050:30000-30050@server:0"
 
-# Adding Managed Identity
-# Note we pass Client ID for the AAD Pod Identity / AVP
-echo "Adding Managed Identity to VM..."
-if [ -z "${MSI_CLIENT_ID}" ]; then
-  MSI_CLIENT_ID=$(az vm identity assign --ids $(curl --silent -H 'Metadata: true' 'http://169.254.169.254/metadata/instance?api-version=2021-02-01' | jq -r .compute.resourceId) --identities "$MSI_RESOURCE_ID" | jq -r ".userAssignedIdentities[\"$MSI_RESOURCE_ID\"].clientId")
-fi
-
 echo "[${BOOTSTRAP_CLUSTER}] Creating Labels..."
-do_kubectl "${BOOTSTRAP_CLUSTER}" label node "k3d-${BOOTSTRAP_CLUSTER}-server-0" node.ssc-spc.gc.ca/purpose=system
+do_kubectl "${BOOTSTRAP_CLUSTER}" label node "k3d-${BOOTSTRAP_CLUSTER}-server-0" node.ssc-spc.gc.ca/purpose=system --overwrite
 
-echo "[${BOOTSTRAP_CLUSTER}] Creating argo-operator-system namespace..."
-cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: argo-operator-system
-  labels:
-    namespace.ssc-spc.gc.ca/purpose: platform
-EOF
-
-echo "[${BOOTSTRAP_CLUSTER}] Creating platform-system namespace..."
-cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: platform-system
-  labels:
-    namespace.ssc-spc.gc.ca/purpose: platform
-EOF
-
-echo "[${BOOTSTRAP_CLUSTER}] Creating platform-management-system namespace..."
-cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: platform-management-system
-  labels:
-    namespace.ssc-spc.gc.ca/purpose: platform
-EOF
+create_namespace $BOOTSTRAP_CLUSTER "argo-operator-system"
+create_namespace $BOOTSTRAP_CLUSTER "platform-system"
+create_namespace $BOOTSTRAP_CLUSTER "platform-management-system"
 
 echo [Adding Helm Repositories...]
-helm repo add aurora https://gccloudone-aurora.github.io/aurora-platform-charts --force-update
+helm repo add aurora $HELM_REGISTRY --force-update
 
 #############################
 ### argocd-operator chart ###
 #############################
 
+echo ""
 echo "[${BOOTSTRAP_CLUSTER}] Installing Argo CD Operator in argo-operator-system..."
 do_helm "${BOOTSTRAP_CLUSTER}" \
   -n argo-operator-system \
@@ -77,49 +47,43 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
 ### argocd-instance chart  ###
 ##############################
 
+if [[ "${CSP,,}" == "azure" ]]; then
+  # Adding Managed Identity
+  # Note we pass Client ID for the AAD Pod Identity / AVP
+  add_azure_managed_identity_to_vm
+fi 
+
+echo ""
 echo "[${BOOTSTRAP_CLUSTER}] Installing Argo CD instance in platform-management-system..."
+envsubst < "base/${CSP,,}/argocd-instance.yaml" | \
 do_helm "${BOOTSTRAP_CLUSTER}" \
   -n platform-management-system \
   upgrade \
   --install \
   --atomic \
   --history-max 2 \
-  --set argocdInstance.argocdVaultPlugin.credentials.avpType="azurekeyvault" \
-  --set argocdInstance.argocdVaultPlugin.credentials.azureClientID="${MSI_CLIENT_ID}" \
-  -f base/argocd-instance.yaml \
+  -f - \
   --force \
-  --version 0.0.7 \
+  --version $ARGOCD_INSTANCE_HELM_CHART_VERSION \
   argocd-instance \
   aurora/argocd-instance
 
-##############################
+#############################
 ### aurora-platform chart ###
-##############################
+#############################
 
-echo "[${BOOTSTRAP_CLUSTER}] Installing Aurora platform in platform-management-system..."
+echo ""
+echo "[${BOOTSTRAP_CLUSTER}] Installing Aurora platform in platform-management-system..." 
+envsubst < "base/${CSP,,}/platform-aurora.yaml" | \
 do_helm "${BOOTSTRAP_CLUSTER}" \
   -n platform-management-system \
   upgrade \
   --install \
   --atomic \
   --history-max 2 \
-  --set global.project="default" \
-  --set mgmt.components.argoFoundation.argocdInstance.argocdVaultPlugin.credentials.azureClientID="${MSI_CLIENT_ID}" \
-  --set mgmt.components.argoFoundation.argocdInstance.aadPodIdentity.enabled="false" \
-  --set mgmt.components.argoFoundation.argocdInstance.netpol.enabled="false" \
-  --set mgmt.components.argoFoundation.argocdInstance.notifications.enabled="false" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.repoURL=${CLUSTER_REPOSITORY}" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.revision=main" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.files[0].path=${CLUSTER_PATH}/**/config.yaml" \
-  --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.template.source.repoURL=${HELM_REPOSITORY}" \
-  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.repoURL=${CLUSTER_REPOSITORY}" \
-  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.revision=main" \
-  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.generator.git.files[0].path=${NAMESPACE_PATH}/**/config.yaml" \
-  --set "mgmt.components.argoFoundation.argocdProjects.solutions.applicationSet.template.source.repoURL=${HELM_REPOSITORY}" \
-  --set "mgmt.components.billOfLanding.enabled=false" \
-  -f base/argocd-bootstrap.yaml \
+  -f - \
   --force \
-  --version 0.0.26 \
+  --version $AURORA_PLATFORM_HELM_CHART_VERSION \
   aurora-platform \
   aurora/aurora-platform
 
@@ -127,6 +91,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
 ### Image Pull Secret ###
 #########################
 
+echo ""
 if [[ -n "$IMAGE_PULL_SECRET" ]]; then
   echo "[${BOOTSTRAP_CLUSTER}] Installing Image Pull Secret..."
   cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
@@ -159,11 +124,28 @@ else
   echo "[${BOOTSTRAP_CLUSTER}] Skipping Image Pull Secret setup as IMAGE_PULL_SECRET is empty."
 fi
 
+########################
+### Register Cluster ###
+########################
+
+echo ""
+echo "Registering cluster"
+
+arn=""
+if [[ "${CSP,,}" == "azure" ]]; then
+  get_aks_kubeconfig
+elif [[ "${CSP,,}" == "aws" ]]; then
+  get_eks_kubeconfig
+  arn=$(aws eks describe-cluster --region $AWS_REGION --name $CLUSTER_NAME --query "cluster.arn" --output text)
+fi 
+
+argocd_register_cluster $BOOTSTRAP_CLUSTER $CLUSTER_NAME $arn
+
 ##################################
 ### Output Argo CD Credentials ###
 ##################################
 
-# Output credentials for Argo CD
+#Output credentials for Argo CD
 echo
 echo "=================================="
 echo
@@ -180,6 +162,6 @@ done
 
 argocd_password=$(do_kubectl "${BOOTSTRAP_CLUSTER}" get secret -n platform-management-system argocd-cluster -o jsonpath='{.data.admin\.password}' | base64 --decode)
 
-echo "Argo CD: https://$(hostname -f):$argocd_port"
+echo "Argo CD: http://127.0.0.1:$argocd_port"
 echo "  Username: admin"
 echo "  Password: $argocd_password"
