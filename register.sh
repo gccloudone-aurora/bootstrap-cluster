@@ -5,6 +5,9 @@ set -eou pipefail
 # Load utils
 source common.sh
 
+MACHINE_NAME="${CLUSTER_NAME,,}"
+MACHINE_NAME="${MACHINE_NAME%-aks}"
+
 # Check if bootstrap cluster has been created yet
 echo "Checking for existence of ${BOOTSTRAP_CLUSTER} cluster..."
 if ! k3d cluster list "${BOOTSTRAP_CLUSTER}" >/dev/null 2>&1; then
@@ -33,14 +36,14 @@ cat <<EOF | do_kubectl "${BOOTSTRAP_CLUSTER}" apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
-  name: "${CLUSTER_NAME,,}"
+  name: "${MACHINE_NAME}"
   namespace: platform-management-system
   labels:
     argocd.argoproj.io/secret-type: cluster
     cluster.ssc-spc.gc.ca/use: argocd
 type: Opaque
 stringData:
-  name: "${CLUSTER_NAME,,}"
+  name: "${MACHINE_NAME}"
   server: "${api_server}"
   config: |
     {
