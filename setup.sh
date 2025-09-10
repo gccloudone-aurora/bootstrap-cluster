@@ -88,7 +88,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set argocdInstance.argocdVaultPlugin.credentials.azureClientID="${MSI_CLIENT_ID}" \
   -f base/argocd-instance.yaml \
   --force \
-  --version 0.1.0 \
+  --version 0.2.0 \
   argocd-instance \
   aurora/argocd-instance
 
@@ -119,7 +119,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set "mgmt.components.billOfLanding.enabled=false" \
   -f base/argocd-bootstrap.yaml \
   --force \
-  --version 0.0.31 \
+  --version 0.0.33 \
   aurora-platform \
   aurora/aurora-platform
 
