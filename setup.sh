@@ -119,7 +119,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set "mgmt.components.billOfLanding.enabled=false" \
   -f base/argocd-bootstrap.yaml \
   --force \
-  --version 0.0.30 \
+  --version 0.0.31 \
   aurora-platform \
   aurora/aurora-platform
 
