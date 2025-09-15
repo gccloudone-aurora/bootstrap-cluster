@@ -84,11 +84,11 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --install \
   --atomic \
   --history-max 2 \
-  --set argocdInstance.argocdVaultPlugin.credentials.avpType="azurekeyvault" \
-  --set argocdInstance.argocdVaultPlugin.credentials.azureClientID="${MSI_CLIENT_ID}" \
+  --set argocdInstance.argocdVaultPlugin.env.ARGOCD_ENV_AVP_TYPE="azurekeyvault" \
+  --set argocdInstance.argocdVaultPlugin.env.ARGOCD_ENV_AZURE_CLIENT_ID="${MSI_CLIENT_ID}" \
   -f base/argocd-instance.yaml \
   --force \
-  --version 0.2.0 \
+  --version 0.3.0 \
   argocd-instance \
   aurora/argocd-instance
 
@@ -104,8 +104,9 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --atomic \
   --history-max 2 \
   --set global.project="default" \
-  --set mgmt.components.argoFoundation.argocdInstance.argocdVaultPlugin.credentials.azureClientID="${MSI_CLIENT_ID}" \
-  --set mgmt.components.argoFoundation.argocdInstance.aadPodIdentity.enabled="false" \
+  --set mgmt.components.argoFoundation.argocdInstance.argocdVaultPlugin.env.ARGOCD_ENV_AVP_TYPE="azurekeyvault" \
+  --set mgmt.components.argoFoundation.argocdInstance.argocdVaultPlugin.env.ARGOCD_ENV_AZURE_CLIENT_ID="${MSI_CLIENT_ID}" \
+  --set mgmt.components.argoFoundation.argocdInstance.argocdVaultPlugin.azure.AADPodIdentity.enabled="false" \
   --set mgmt.components.argoFoundation.argocdInstance.netpol.enabled="false" \
   --set mgmt.components.argoFoundation.argocdInstance.notifications.enabled="false" \
   --set "mgmt.components.argoFoundation.argocdProjects.platform.applicationSet.generator.git.repoURL=${CLUSTER_REPOSITORY}" \
@@ -119,7 +120,7 @@ do_helm "${BOOTSTRAP_CLUSTER}" \
   --set "mgmt.components.billOfLanding.enabled=false" \
   -f base/argocd-bootstrap.yaml \
   --force \
-  --version 0.0.33 \
+  --version 0.0.52 \
   aurora-platform \
   aurora/aurora-platform
 
